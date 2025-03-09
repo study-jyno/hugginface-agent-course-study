@@ -961,5 +961,978 @@ LLM에게 추가 기능(예: 계산 수행, 외부 데이터 접근 등)을 제�
 
 
 
-# TODO 여기 진행 필요
-https://huggingface.co/learn/agents-course/unit1/agent-steps-and-structure
+
+아래는 제공해주신 "Understanding AI Agents through the Thought-Action-Observation Cycle" 문서의 한국어 번역입니다.
+
+---
+
+**Hugging Face의 로고**
+**Hugging Face**
+
+**Agents Course 문서**
+
+# 생각-행동-관찰 사이클을 통한 AI 에이전트 이해
+
+## Unit 1 계획
+이전 섹션에서 우리는 다음을 배웠습니다:
+
+- 시스템 프롬프트에서 에이전트에게 툴이 어떻게 제공되는지.
+- AI 에이전트가 ‘추론’하고, 계획하며, 환경과 상호작용할 수 있는 시스템이라는 점.
+
+이번 섹션에서는 **생각-행동-관찰**로 정의한 완전한 AI 에이전트 워크플로우를 탐구할 것입니다.
+
+그리고 각 단계를 더 깊이 파고들어 살펴봅니다.
+
+---
+
+## 핵심 구성 요소
+
+에이전트는 **생각(Thought) → 행동(Act) → 관찰(Observe)**의 지속적인 사이클로 작동합니다.
+
+이 동작들을 함께 자세히 살펴보면:
+
+- **생각 (Thought):** 에이전트의 LLM 부분이 다음 단계로 무엇을 할지 결정합니다.
+- **행동 (Action):** 에이전트가 관련 인자를 사용하여 툴을 호출함으로써 행동을 취합니다.
+- **관찰 (Observation):** 모델이 툴의 응답을 반영합니다.
+
+---
+
+## 생각-행동-관찰 사이클
+
+세 가지 구성 요소는 계속되는 루프 내에서 함께 작동합니다. 프로그래밍의 유사점을 들자면, 에이전트는 목표가 달성될 때까지 계속되는 `while` 루프와 같습니다.
+
+시각적으로는 다음과 같이 표현할 수 있습니다:
+
+**Think, Act, Observe 사이클**
+
+많은 에이전트 프레임워크에서는 규칙과 지침이 시스템 프롬프트에 직접 내장되어, 모든 사이클이 정의된 논리에 따라 진행되도록 합니다.
+
+단순화된 버전에서는 우리의 시스템 프롬프트가 다음과 같이 보일 수 있습니다:
+
+**Think, Act, Observe 사이클**
+
+여기서 시스템 메시지에 다음과 같이 정의되어 있습니다:
+
+- 에이전트의 행동 방식.
+- 이전 섹션에서 설명한, 에이전트가 접근할 수 있는 툴들.
+- LLM 지침에 포함된 생각-행동-관찰 사이클.
+
+---
+
+## 예시: 날씨 에이전트 Alfred
+
+우리는 날씨 에이전트인 **Alfred**를 만들었습니다.
+
+사용자가 Alfred에게 “오늘 뉴욕의 날씨는 어떤가요?”라고 묻습니다.
+
+**Alfred 에이전트**
+Alfred의 임무는 날씨 API 툴을 사용해 해당 질문에 답변하는 것입니다.
+
+사이클은 다음과 같이 전개됩니다:
+
+### 1. 생각 (Thought)
+**내부 추론:**
+질문을 받은 직후, Alfred의 내부 대화는 다음과 같을 수 있습니다:
+
+> “사용자가 뉴욕의 현재 날씨 정보를 필요로 한다. 나는 날씨 데이터를 가져오는 툴에 접근할 수 있다. 먼저 최신 정보를 얻기 위해 날씨 API를 호출해야겠다.”
+
+이 단계에서 에이전트는 문제를 단계별로 분해하여, 우선 필요한 데이터를 수집합니다.
+
+---
+
+### 2. 행동 (Action)
+**툴 사용:**
+자신의 추론과 Alfred가 `get_weather` 툴에 대해 알고 있다는 사실을 바탕으로, Alfred는 날씨 API 툴을 호출하는 JSON 형식의 명령을 준비합니다. 예를 들어, 그의 첫 번째 행동은 다음과 같을 수 있습니다:
+
+> **생각:** “뉴욕의 현재 날씨를 확인해야겠다.”
+
+```json
+{
+  "action": "get_weather",
+  "action_input": {
+    "location": "New York"
+  }
+}
+```
+
+여기서, 해당 행동은 어떤 툴(예: `get_weather`)을 호출할 것인지와 어떤 매개변수(“location”: “New York”)를 전달할 것인지 명확하게 지정합니다.
+
+---
+
+### 3. 관찰 (Observation)
+**환경으로부터의 피드백:**
+툴 호출 후, Alfred는 관찰값을 받게 됩니다. 예를 들어 API로부터 받은 원시 날씨 데이터는 다음과 같을 수 있습니다:
+
+> “뉴욕의 현재 날씨: 부분적으로 흐림, 15°C, 습도 60%.”
+
+이 관찰값은 추가적인 컨텍스트로 프롬프트에 포함되어, 해당 행동이 성공했는지 확인하고 필요한 세부 정보를 제공합니다.
+
+---
+
+### 업데이트된 생각 (Reflecting)
+관찰값을 바탕으로, Alfred는 내부 추론을 다음과 같이 업데이트합니다:
+
+> “이제 뉴욕의 날씨 데이터를 확보했으니, 사용자에게 답변을 작성할 수 있다.”
+
+---
+
+### 최종 행동 (Final Action)
+그 후, Alfred는 우리가 지정한 형식에 맞춰 최종 응답을 생성합니다:
+
+> **생각:** “이제 날씨 데이터를 확보했다. 뉴욕의 현재 날씨는 부분적으로 흐림이며, 온도는 15°C, 습도는 60%이다.”
+
+> **최종 답변:** “뉴욕의 현재 날씨는 부분적으로 흐림이며, 온도는 15°C, 습도는 60%입니다.”
+
+이 최종 행동은 사용자에게 답변을 전달하며 사이클을 종료합니다.
+
+---
+
+## 이 예시에서 볼 수 있는 점
+
+- **순환적 프로세스:**
+  에이전트는 목표가 달성될 때까지 생각 → 행동 → 관찰의 루프를 반복합니다. 만약 관찰 결과에 오류나 불완전한 데이터가 포함되었다면, Alfred는 사이클에 다시 진입하여 접근 방식을 수정할 수 있습니다.
+
+- **툴 통합:**
+  날씨 API와 같은 툴을 호출할 수 있는 능력은 Alfred가 정적인 지식을 넘어 실시간 데이터를 가져올 수 있게 해주며, 이는 많은 AI 에이전트에게 필수적입니다.
+
+- **동적 적응:**
+  각 사이클은 에이전트가 새로운 정보(관찰값)를 자신의 추론(생각)에 반영하게 해주어, 최종 답변이 충분히 정보에 기반하고 정확하도록 보장합니다.
+
+이 예시는 **ReAct 사이클**의 핵심 개념(다음 섹션에서 발전시킬 개념)을 잘 보여줍니다. 생각, 행동, 관찰의 상호작용은 AI 에이전트가 복잡한 작업을 반복적으로 해결할 수 있도록 합니다.
+
+이 원칙들을 이해하고 적용함으로써, 여러분은 작업에 대해 단순히 추론하는 것을 넘어 외부 툴을 효과적으로 활용해 작업을 완료하고, 환경 피드백에 따라 결과를 지속적으로 개선하는 에이전트를 설계할 수 있습니다.
+
+---
+
+이제 프로세스의 개별 단계인 **생각, 행동, 관찰**에 대해 더 자세히 살펴보겠습니다.
+
+
+# 생각: 내부 추론 및 Re-Act 접근법
+
+이 섹션에서는 AI 에이전트의 내부 작동 방식, 즉 추론하고 계획하는 능력에 대해 살펴봅니다. 에이전트가 내부 대화를 활용하여 정보를 분석하고, 복잡한 문제를 관리 가능한 단계로 분해하며, 다음에 어떤 행동을 취할지 결정하는 과정을 탐구합니다. 또한, 모델이 행동하기 전에 “단계별로 생각해보자”라는 프롬프트를 추가하여 사고를 유도하는 Re-Act 접근법도 소개합니다.
+
+**생각(Thought)** 은 에이전트가 작업을 해결하기 위해 내부에서 진행하는 추론 및 계획 과정을 나타냅니다.
+
+- 이는 에이전트의 대형 언어 모델(LLM)이 프롬프트에 제시된 정보를 분석할 수 있는 능력을 활용합니다.
+- 에이전트의 내부 대화처럼, 주어진 작업에 대해 고민하고 접근 방식을 전략적으로 수립하는 과정입니다.
+- 에이전트의 생각은 현재 관찰된 데이터를 바탕으로 다음 행동(들)을 결정하는 데 사용됩니다.
+- 이 과정을 통해 에이전트는 복잡한 문제를 더 작고 관리하기 쉬운 단계로 분해하고, 과거 경험을 반영하며, 새로운 정보에 따라 계획을 지속적으로 조정할 수 있습니다.
+
+다음은 일반적인 생각의 예시입니다:
+
+| **생각 유형**           | **예시**                                                                 |
+|---------------------|-----------------------------------------------------------------------|
+| **계획(Planning)**       | “이 작업을 세 단계로 나눠야겠다: 1) 데이터 수집, 2) 추세 분석, 3) 보고서 작성”         |
+| **분석(Analysis)**        | “오류 메시지를 보면 문제는 데이터베이스 연결 파라미터에 있는 것 같다”                       |
+| **의사결정(Decision Making)** | “사용자의 예산 제약을 고려할 때, 중간 가격대 옵션을 추천해야겠다”                           |
+| **문제 해결(Problem Solving)**  | “이 코드를 최적화하려면 먼저 프로파일링하여 병목 현상을 찾아야겠다”                         |
+| **기억 통합(Memory Integration)** | “사용자가 이전에 Python을 선호한다고 언급했으니, Python 예제를 제공하자”                      |
+| **자기 반성(Self-Reflection)**    | “지난 접근 방식은 효과적이지 않았다. 다른 전략을 시도해야겠다”                              |
+| **목표 설정(Goal Setting)**      | “이 작업을 완료하기 위해 우선 수용 기준을 설정해야겠다”                                     |
+| **우선순위 결정(Prioritization)**   | “보안 취약점은 새로운 기능 추가 전에 먼저 해결되어야 한다”                                 |
+
+**참고:** 함수 호출을 위해 파인튜닝된 LLM의 경우, 생각 과정은 선택 사항입니다. 함수 호출에 익숙하지 않다면, 행동 섹션에서 자세한 내용을 확인할 수 있습니다.
+
+---
+
+## Re-Act 접근법
+
+핵심 방법 중 하나는 **Re-Act 접근법**으로, 이는 “추론(Think)”과 “행동(Act)”을 결합한 것입니다.
+
+- **Re-Act**는 단순한 프롬프트 기법으로, “단계별로 생각해보자”라는 문구를 추가한 후 LLM이 다음 토큰을 해독하도록 유도합니다.
+- 실제로 모델에게 “단계별로 생각해보자”라고 지시하면, 모델은 문제를 하위 작업으로 분해하여 최종 해결책보다는 계획을 생성하는 방향으로 해독 과정을 진행하게 됩니다.
+- 이 방법을 사용하면 모델이 하위 단계들을 더 세밀하게 고려할 수 있어, 최종 해결책을 한 번에 생성하려 할 때보다 오류가 줄어드는 경향이 있습니다.
+
+**Re-Act**
+예를 들어, (d)는 “단계별로 생각해보자”라는 프롬프트를 사용한 Re-Act 접근법의 한 예시입니다.
+
+![alt text](image-1.png)
+
+최근에는 추론 전략에 대한 관심이 크게 증가했습니다. 이는 Deepseek R1이나 OpenAI의 o1과 같은 모델 뒤에 있는 원리로, 이들 모델은 “대답하기 전에 생각하도록” 파인튜닝되었습니다.
+이 모델들은 항상 특정 사고 섹션(특수 토큰 `<think>`와 `</think>`로 감싸진)을 포함하도록 훈련되었는데, 이는 단순한 프롬프트 기법(Re-Act)을 넘어, 수천 개의 예시를 분석한 후 모델이 기대하는 사고 과정을 학습하도록 하는 훈련 방법입니다.
+
+이제 생각 과정에 대해 더 잘 이해했으니, 프로세스의 두 번째 부분인 **행동(Act)**에 대해 더 깊이 알아보겠습니다.
+
+---
+
+# 행동: 에이전트가 환경과 상호작용할 수 있도록 하는 방법
+
+이 섹션에서는 AI 에이전트가 환경과 상호작용하기 위해 수행하는 구체적인 단계들을 살펴봅니다.
+우리는 행동이 어떻게 표현되는지(JSON 또는 코드 사용), 스톱 앤 파스(stop and parse) 접근법의 중요성, 그리고 다양한 유형의 에이전트를 소개할 것입니다.
+
+행동(Actions)은 AI 에이전트가 환경과 상호작용하기 위해 수행하는 구체적인 단계입니다.
+웹 검색을 하거나 물리적 장치를 제어하는 등, 각각의 행동은 에이전트가 의도적으로 수행하는 조작입니다.
+예를 들어, 고객 서비스를 지원하는 에이전트는 고객 데이터를 검색하거나 지원 문서를 제공하거나 문제를 담당자에게 이관할 수 있습니다.
+
+---
+
+## 에이전트 행동의 유형
+
+에이전트는 서로 다른 방식으로 행동할 수 있습니다:
+
+| **에이전트 유형**           | **설명**                                                                          |
+|-------------------------|-----------------------------------------------------------------------------------|
+| **JSON 에이전트**        | 수행할 행동이 JSON 형식으로 명시됩니다.                                                 |
+| **코드 에이전트**        | 에이전트가 외부에서 해석되는 코드 블록을 작성합니다.                                         |
+| **함수 호출 에이전트**    | JSON 에이전트의 하위 범주로, 각 행동마다 새로운 메시지를 생성하도록 파인튜닝되어 있습니다.            |
+
+행동 자체는 다양한 목적을 수행할 수 있습니다:
+
+| **행동 유형**              | **설명**                                                                      |
+|------------------------|----------------------------------------------------------------------------|
+| **정보 수집**             | 웹 검색, 데이터베이스 질의, 문서 검색 등을 수행합니다.                                   |
+| **툴 사용**               | API 호출, 계산 수행, 코드 실행 등을 수행합니다.                                          |
+| **환경 상호작용**         | 디지털 인터페이스 조작이나 물리적 장치 제어를 수행합니다.                                  |
+| **커뮤니케이션**           | 채팅을 통해 사용자와 소통하거나 다른 에이전트와 협업합니다.                                  |
+
+에이전트의 중요한 요소 중 하나는 행동이 완료되면 추가 토큰 생성을 멈출 수 있는 능력입니다.
+이 기능은 모든 형태의 에이전트(JSON, 코드, 함수 호출)에서 적용되며, 의도치 않은 출력이 발생하는 것을 방지하고 에이전트의 응답을 명확하고 정확하게 만듭니다.
+
+LLM은 텍스트만 처리하며, 이를 사용해 수행할 행동과 툴에 전달할 파라미터를 설명합니다.
+
+---
+
+## 스톱 앤 파스 접근법
+
+행동을 구현하는 핵심 방법 중 하나는 **스톱 앤 파스(stop and parse)** 접근법입니다. 이 방법은 에이전트의 출력이 구조화되고 예측 가능하도록 보장합니다.
+
+1. **구조화된 형식으로 출력 생성:**
+   에이전트는 JSON이나 코드와 같이 명확하고 사전에 정해진 형식으로 의도한 행동을 출력합니다.
+
+2. **추가 토큰 생성을 중단:**
+   행동이 완료되면 에이전트는 추가 토큰 생성을 중단합니다. 이렇게 하면 불필요하거나 잘못된 출력이 발생하는 것을 방지할 수 있습니다.
+
+3. **출력 파싱:**
+   외부 파서가 구조화된 행동 출력을 읽어 호출할 툴의 이름을 결정하고 필요한 파라미터를 추출합니다.
+
+예를 들어, 날씨를 확인해야 하는 에이전트는 다음과 같이 출력할 수 있습니다:
+
+```
+Thought: I need to check the current weather for New York.
+Action:
+{
+  "action": "get_weather",
+  "action_input": {"location": "New York"}
+}
+```
+
+프레임워크는 이 명령에서 호출할 함수의 이름과 적용할 인자를 쉽게 파싱할 수 있습니다.
+이처럼 명확하고 기계가 읽을 수 있는 형식은 오류를 최소화하고 외부 툴이 에이전트의 명령을 정확하게 처리하도록 돕습니다.
+
+*참고:* 함수 호출 에이전트는 각 행동을 구조화하여 지정된 함수가 올바른 인자와 함께 호출되도록 작동합니다. 이러한 에이전트 유형에 대해서는 앞으로의 Unit에서 더 자세히 다룰 예정입니다.
+
+---
+
+## 코드 에이전트
+
+대안으로 **코드 에이전트**를 사용할 수도 있습니다.
+이 방식은 단순한 JSON 객체 대신 실행 가능한 코드 블록(주로 Python과 같은 고수준 언어)을 생성하는 접근법입니다.
+
+
+![alt text](image-2.png)
+
+### 코드 에이전트의 장점
+
+- **표현력:**
+  코드로 복잡한 논리(루프, 조건문, 중첩 함수 등)를 자연스럽게 표현할 수 있어 JSON보다 유연합니다.
+- **모듈성 및 재사용성:**
+  생성된 코드는 다양한 행동이나 작업에서 재사용 가능한 함수와 모듈을 포함할 수 있습니다.
+- **디버깅 용이성:**
+  명확한 프로그래밍 문법 덕분에 코드 오류를 쉽게 탐지하고 수정할 수 있습니다.
+- **직접 통합:**
+  코드 에이전트는 외부 라이브러리와 API와 직접 통합되어, 데이터 처리나 실시간 의사결정과 같은 복잡한 작업을 수행할 수 있습니다.
+
+예를 들어, 날씨 정보를 가져오는 코드 에이전트는 다음과 같은 Python 코드를 생성할 수 있습니다:
+
+```python
+# 코드 에이전트 예시: 날씨 정보 가져오기
+def get_weather(city):
+    import requests
+    api_url = f"https://api.weather.com/v1/location/{city}?apiKey=YOUR_API_KEY"
+    response = requests.get(api_url)
+    if response.status_code == 200:
+        data = response.json()
+        return data.get("weather", "No weather information available")
+    else:
+        return "Error: Unable to fetch weather data."
+
+# 함수 실행 후 최종 답변 준비
+result = get_weather("New York")
+final_answer = f"The current weather in New York is: {result}"
+print(final_answer)
+```
+
+이 예시에서 코드 에이전트는:
+
+- API 호출을 통해 날씨 데이터를 가져오고,
+- 응답을 처리하며,
+- `print()` 함수를 사용하여 최종 답변을 출력합니다.
+
+이 방식 또한 스톱 앤 파스 접근법을 따르며, 코드 블록을 명확히 구분하고 실행 완료 시점을 출력(예: `final_answer` 출력)으로 알립니다.
+
+---
+
+우리는 행동이 에이전트의 내부 추론과 실제 환경 상호작용을 연결하는 다리 역할을 한다는 것을 배웠습니다.
+각 행동은 명확하고 구조화된 작업을 실행하며, 스톱 앤 파스 접근법을 통해 외부 처리가 정확하게 이루어지도록 준비됩니다.
+
+다음 섹션에서는 **관찰(Observations)**에 대해 살펴보며, 에이전트가 환경으로부터 받은 피드백을 어떻게 캡처하고 통합하는지 알아볼 것입니다.
+이후, 마침내 우리의 첫 번째 에이전트를 구축할 준비가 될 것입니다.
+
+---
+
+
+# 관찰: 피드백을 통합하여 반영 및 적응하기
+
+관찰(Observations)은 에이전트가 자신의 행동 결과를 인지하는 방식입니다.
+이들은 에이전트의 사고 과정을 촉진하고 향후 행동을 안내하는 중요한 정보를 제공합니다.
+
+관찰은 API로부터의 데이터, 오류 메시지, 시스템 로그 등 환경으로부터 전달되는 신호로, 다음 사고 사이클을 이끌어 갑니다.
+
+관찰 단계에서 에이전트는 다음과 같은 작업을 수행합니다:
+
+- **피드백 수집:** 행동이 성공했는지(또는 실패했는지)에 대한 데이터나 확인 메시지를 받습니다.
+- **결과 추가:** 새로운 정보를 기존 컨텍스트에 통합하여 메모리를 효과적으로 업데이트합니다.
+- **전략 수정:** 업데이트된 컨텍스트를 바탕으로 이후의 생각과 행동을 정제합니다.
+
+예를 들어, 날씨 API가 “부분적으로 흐림, 15°C, 습도 60%”라는 데이터를 반환하면, 이 관찰 결과는 에이전트의 메모리(프롬프트의 끝부분)에 추가됩니다.
+그 후 에이전트는 추가 정보가 필요한지, 혹은 최종 답변을 제공할 준비가 되었는지 결정하는 데 이 정보를 사용합니다.
+
+이러한 반복적인 피드백 통합은 에이전트가 목표에 동적으로 부합하도록 유지하며, 실제 결과에 따라 지속적으로 학습하고 조정하게 합니다.
+
+관찰은 웹 페이지 텍스트를 읽거나 로봇 팔의 위치를 모니터링하는 등 다양한 형태로 나타날 수 있습니다.
+이는 행동 실행의 텍스트 피드백을 제공하는 툴 “로그”와 유사한 역할을 합니다.
+
+다음은 일반적인 관찰 유형과 그 예시입니다:
+
+| **관찰 유형**           | **예시**                                                           |
+|---------------------|-------------------------------------------------------------------|
+| **시스템 피드백**         | 오류 메시지, 성공 알림, 상태 코드                                        |
+| **데이터 변경**          | 데이터베이스 업데이트, 파일 시스템 수정, 상태 변화                         |
+| **환경 데이터**          | 센서 판독값, 시스템 메트릭, 자원 사용량                                      |
+| **응답 분석**           | API 응답, 질의 결과, 계산 출력                                          |
+| **시간 기반 이벤트**      | 마감 기한 도달, 예약된 작업 완료                                         |
+
+---
+
+## 결과를 어떻게 추가하나요?
+
+행동을 수행한 후, 프레임워크는 다음 단계를 순서대로 따릅니다:
+
+1. 행동을 파싱하여 호출할 함수와 사용할 인자를 식별합니다.
+2. 해당 행동을 실행합니다.
+3. 결과를 관찰(Observation)로서 추가합니다.
+
+이제 에이전트의 **생각-행동-관찰 사이클**에 대해 배웠습니다.
+아직 일부 내용이 다소 모호하게 느껴진다면 걱정하지 마세요. 앞으로의 Unit에서 이 개념들을 다시 살펴보고 더욱 심화할 것입니다.
+
+이제 여러분의 지식을 바탕으로 첫 번째 에이전트를 직접 코딩해볼 시간입니다!
+
+---
+
+
+
+# 더미 에이전트 라이브러리
+
+이 코스는 특정 프레임워크의 세부사항에 얽매이지 않고 AI 에이전트의 개념에 집중하기 위해 프레임워크 독립적으로 진행됩니다.
+또한, 학생들이 이 코스에서 배운 개념들을 자신들의 프로젝트에서 원하는 프레임워크와 함께 활용할 수 있도록 하기 위함입니다.
+
+따라서, 이번 Unit 1에서는 더미 에이전트 라이브러리와 간단한 서버리스 API를 사용하여 LLM(대형 언어 모델) 엔진에 접근하는 방법을 다룹니다.
+실제 프로덕션에서는 이러한 방식들을 그대로 사용하지 않을 수 있지만, 에이전트의 작동 원리를 이해하는 좋은 출발점이 될 것입니다.
+
+이 섹션이 끝난 후, 여러분은 `smolagents`를 사용하여 간단한 에이전트를 생성할 준비가 될 것입니다.
+또한, 이후 Unit에서는 `LangGraph`, `LangChain`, `LlamaIndex`와 같은 다른 AI 에이전트 라이브러리들도 다룰 예정입니다.
+
+단순함을 유지하기 위해, 여기서는 단순한 Python 함수 하나를 툴과 에이전트로 사용할 것입니다.
+내장 Python 패키지인 `datetime`과 `os` 등을 사용하여 어떤 환경에서도 쉽게 실행해볼 수 있도록 할 것입니다.
+
+자세한 과정은 이 노트북(코드를 직접 실행해볼 수 있는 예제)을 참고하세요.
+
+---
+
+## 서버리스 API
+
+Hugging Face 에코시스템에는 많은 모델에 대해 추론을 손쉽게 실행할 수 있도록 하는 **서버리스 API**라는 편리한 기능이 있습니다.
+이 API를 사용하면 별도의 설치나 배포 없이도 모델 추론을 실행할 수 있습니다.
+
+다음은 서버리스 API를 사용하는 예제 코드입니다:
+
+```python
+import os
+from huggingface_hub import InferenceClient
+
+## https://hf.co/settings/tokens 에서 'read' 타입 토큰을 받아오세요.
+## Google Colab에서 실행하는 경우 "settings" 탭의 "secrets"에 "HF_TOKEN"으로 설정할 수 있습니다.
+os.environ["HF_TOKEN"] = "hf_xxxxxxxxxxxxxx"
+
+client = InferenceClient("meta-llama/Llama-3.2-3B-Instruct")
+# 만약 다음 셀의 출력이 올바르지 않다면, 무료 모델이 과부하 상태일 수 있습니다.
+# 아래의 공개 엔드포인트를 사용할 수도 있습니다.
+# client = InferenceClient("https://jc26mwg228mkj8dw.us-east-1.aws.endpoints.huggingface.cloud")
+```
+
+다음으로 텍스트 생성 방식으로 추론을 실행합니다:
+
+```python
+output = client.text_generation(
+    "The capital of France is",
+    max_new_tokens=100,
+)
+print(output)
+```
+
+**출력 예시:**
+
+```
+Paris. The capital of France is Paris. The capital of France is Paris. The capital of France is Paris. ...
+```
+
+LLM 섹션에서 보았듯, 단순히 디코딩을 수행하면 모델은 EOS(종료) 토큰을 예측할 때까지 출력을 계속 생성합니다.
+이 경우 대화형(chat) 모델이므로, 기대하는 채팅 템플릿을 적용하지 않았기 때문에 EOS 토큰이 나타나지 않습니다.
+
+하지만, 사용 중인 Llama-3.2-3B-Instruct 모델과 관련된 특수 토큰들을 추가하면 동작이 변경되어 기대한 EOS를 생성하게 됩니다.
+
+예를 들어:
+
+```python
+prompt = """<|begin_of_text|><|start_header_id|>user<|end_header_id|>
+The capital of France is<|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
+output = client.text_generation(
+    prompt,
+    max_new_tokens=100,
+)
+print(output)
+```
+
+**출력 예시:**
+
+```
+The capital of France is Paris.
+```
+
+채팅 메서드를 사용하는 것이 채팅 템플릿을 적용하는 데 훨씬 더 편리하고 신뢰할 수 있는 방법입니다:
+
+```python
+output = client.chat.completions.create(
+    messages=[
+        {"role": "user", "content": "The capital of France is"},
+    ],
+    stream=False,
+    max_tokens=1024,
+)
+print(output.choices[0].message.content)
+```
+
+**출력:**
+
+```
+Paris.
+```
+
+채팅 메서드는 모델 간 원활한 전환을 보장하기 위해 권장되지만, 이 노트북은 교육용이므로 세부사항을 이해하기 위해 'text_generation' 방식을 계속 사용할 것입니다.
+
+---
+
+## 더미 에이전트
+
+이전 섹션에서는 에이전트 라이브러리의 핵심이 시스템 프롬프트에 정보를 추가하는 것임을 확인했습니다.
+이 시스템 프롬프트는 이전에 본 것보다 약간 더 복잡하지만, 이미 다음 두 가지 내용을 포함하고 있습니다:
+
+1. **툴에 대한 정보**
+2. **사이클 지침 (Thought → Action → Observation)**
+
+예를 들어, 아래와 같이 지시할 수 있습니다:
+
+```
+Answer the following questions as best you can. You have access to the following tools:
+
+get_weather: Get the current weather in a given location
+
+The way you use the tools is by specifying a json blob.
+Specifically, this json should have an `action` key (with the name of the tool to use) and an `action_input` key (with the input to the tool going here).
+
+The only values that should be in the "action" field are:
+get_weather: Get the current weather in a given location, args: {"location": {"type": "string"}}
+example use :
+
+{
+  "action": "get_weather",
+  "action_input": {"location": "New York"}
+}
+
+ALWAYS use the following format:
+
+Question: the input question you must answer
+Thought: you should always think about one action to take. Only one action at a time in this format:
+Action:
+
+$JSON_BLOB (inside markdown cell)
+
+Observation: the result of the action. This Observation is unique, complete, and the source of truth.
+... (this Thought/Action/Observation can repeat N times, you should take several steps when needed. The $JSON_BLOB must be formatted as markdown and only use a SINGLE action at a time.)
+
+You must always end your output with the following format:
+
+Thought: I now know the final answer
+Final Answer: the final answer to the original input question
+
+Now begin! Reminder to ALWAYS use the exact characters `Final Answer:` when you provide a definitive answer.
+```
+
+**프롬프트 적용 방식**
+
+현재 'text_generation' 메서드를 사용하고 있으므로, 프롬프트를 수동으로 적용해야 합니다:
+
+```python
+prompt = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+{SYSTEM_PROMPT}
+<|eot_id|><|start_header_id|>user<|end_header_id|>
+What's the weather in London ?
+<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+"""
+```
+
+또한, 아래와 같이 채팅 메서드 내부에서 적용되는 방식과 동일하게 할 수도 있습니다:
+
+```python
+messages = [
+    {"role": "system", "content": SYSTEM_PROMPT},
+    {"role": "user", "content": "What's the weather in London ?"},
+]
+from transformers import AutoTokenizer
+tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.2-3B-Instruct")
+
+tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+```
+
+이렇게 생성된 프롬프트는 다음과 같습니다:
+
+```
+<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+Answer the following questions as best you can. You have access to the following tools:
+
+get_weather: Get the current weather in a given location
+
+The way you use the tools is by specifying a json blob.
+Specifically, this json should have an `action` key (with the name of the tool to use) and an `action_input` key (with the input to the tool going here).
+
+The only values that should be in the "action" field are:
+get_weather: Get the current weather in a given location, args: {"location": {"type": "string"}}
+example use :
+
+{
+  "action": "get_weather",
+  "action_input": {"location": "New York"}
+}
+
+ALWAYS use the following format:
+
+Question: the input question you must answer
+Thought: you should always think about one action to take. Only one action at a time in this format:
+Action:
+
+$JSON_BLOB (inside markdown cell)
+
+Observation: the result of the action. This Observation is unique, complete, and the source of truth.
+... (this Thought/Action/Observation can repeat N times, you should take several steps when needed. The $JSON_BLOB must be formatted as markdown and only use a SINGLE action at a time.)
+
+You must always end your output with the following format:
+
+Thought: I now know the final answer
+Final Answer: the final answer to the original input question
+
+Now begin! Reminder to ALWAYS use the exact characters `Final Answer:` when you provide a definitive answer.
+<|eot_id|><|start_header_id|>user<|end_header_id|>
+What's the weather in London ?
+<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+```
+
+**예제 실행**
+
+예를 들어, 아래와 같이 코드를 실행할 수 있습니다:
+
+```python
+output = client.text_generation(
+    prompt,
+    max_new_tokens=200,
+)
+print(output)
+```
+
+**출력 예시:**
+
+```
+Thought: I will check the weather in London.
+Action:
+```
+```
+{
+  "action": "get_weather",
+  "action_input": {"location": "London"}
+}
+```
+```
+Observation: The current weather in London is mostly cloudy with a high of 12°C and a low of 8°C.
+```
+
+문제는 모델이 실제 함수 호출 없이 허구의(halucinated) 답변을 생성했다는 점입니다.
+실제 함수를 실행하려면 **Observation** 단계에서 출력을 중단하여 함수 호출 없이 결과를 받아야 합니다.
+
+예를 들어, 아래와 같이 "Observation:"에서 멈추도록 할 수 있습니다:
+
+```python
+output = client.text_generation(
+    prompt,
+    max_new_tokens=200,
+    stop=["Observation:"]
+)
+print(output)
+```
+
+**출력 예시:**
+
+```
+Thought: I will check the weather in London.
+Action:
+```
+```
+{
+  "action": "get_weather",
+  "action_input": {"location": "London"}
+}
+```
+```
+Observation:
+```
+
+이제 더 나아가, 실제 상황에서는 API를 호출할 수 있는 대신, 더미(dummy) get_weather 함수를 만들어봅니다:
+
+```python
+# 더미 함수
+def get_weather(location):
+    return f"the weather in {location} is sunny with low temperatures. \n"
+
+get_weather('London')
+```
+
+**출력 예시:**
+
+```
+'the weather in London is sunny with low temperatures. \n'
+```
+
+그 후, 기본 프롬프트, 함수 실행 전까지의 생성된 텍스트, 그리고 함수 결과(Observation)를 하나로 이어 붙여 새로운 프롬프트(new_prompt)를 생성하고, 생성을 재개합니다:
+
+```python
+new_prompt = prompt + output + get_weather('London')
+final_output = client.text_generation(
+    new_prompt,
+    max_new_tokens=200,
+)
+print(final_output)
+```
+
+새 프롬프트는 다음과 같이 구성됩니다:
+
+```
+<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+    Answer the following questions as best you can. You have access to the following tools:
+
+get_weather: Get the current weather in a given location
+
+The way you use the tools is by specifying a json blob.
+Specifically, this json should have an `action` key (with the name of the tool to use) and an `action_input` key (with the input to the tool going here).
+
+The only values that should be in the "action" field are:
+get_weather: Get the current weather in a given location, args: {"location": {"type": "string"}}
+example use :
+
+{
+  "action": "get_weather",
+  "action_input": {"location": "New York"}
+}
+
+ALWAYS use the following format:
+
+Question: the input question you must answer
+Thought: you should always think about one action to take. Only one action at a time in this format:
+Action:
+
+$JSON_BLOB (inside markdown cell)
+
+Observation: the result of the action. This Observation is unique, complete, and the source of truth.
+... (this Thought/Action/Observation can repeat N times, you should take several steps when needed. The $JSON_BLOB must be formatted as markdown and only use a SINGLE action at a time.)
+
+You must always end your output with the following format:
+
+Thought: I now know the final answer
+Final Answer: the final answer to the original input question
+
+Now begin! Reminder to ALWAYS use the exact characters `Final Answer:` when you provide a definitive answer.
+<|eot_id|><|start_header_id|>user<|end_header_id|>
+What's the weather in London ?
+<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+Thought: I will check the weather in London.
+Action:
+```
+```
+{
+  "action": "get_weather",
+  "action_input": {"location": {"type": "string", "value": "London"}
+}
+```
+```
+Observation: the weather in London is sunny with low temperatures.
+```
+
+**최종 출력 예시:**
+
+```
+Final Answer: The weather in London is sunny with low temperatures.
+```
+
+---
+
+이 과정을 통해 Python 코드를 사용하여 에이전트를 처음부터 만드는 방법을 배웠으며, 그 과정이 얼마나 번거로운지 확인할 수 있었습니다.
+다행히도, 많은 에이전트 라이브러리가 이러한 복잡한 작업들을 대신 처리해주어 개발자가 보다 쉽게 에이전트를 구축할 수 있도록 돕습니다.
+
+이제 우리는 `smolagents` 라이브러리를 사용하여 첫 번째 실제 에이전트를 생성할 준비가 되었습니다.
+
+---
+
+# smolagents를 사용하여 첫 번째 에이전트 만들기
+
+이전 섹션에서는 Python 코드를 사용하여 에이전트를 처음부터 만드는 방법과 그 과정이 얼마나 번거로운지 살펴보았습니다. 다행히도, 많은 에이전트 라이브러리가 복잡한 작업의 대부분을 대신 처리해주어 개발자가 보다 쉽게 에이전트를 구축할 수 있도록 돕습니다.
+
+이 튜토리얼에서는 이미지 생성, 웹 검색, 시간대 확인 등 다양한 행동을 수행할 수 있는 첫 번째 에이전트를 직접 만들어 볼 것입니다. 또한, 여러분의 에이전트를 Hugging Face Space에 배포하여 친구나 동료들과 공유할 수 있게 됩니다.
+
+자, 시작해봅시다!
+
+---
+
+## 1. smolagents란?
+
+![alt text](image-3.png)
+
+smolagents는 에이전트를 쉽게 개발할 수 있도록 도와주는 경량 라이브러리입니다.
+이 라이브러리는 단순함에 초점을 맞추면서도 에이전트 구축의 복잡한 부분들을 추상화하여, 에이전트의 행동 설계에 집중할 수 있게 합니다.
+
+앞으로의 Unit에서 smolagents에 대해 더 자세히 다룰 예정이며, 관련 블로그 포스트나 GitHub 레포도 참고할 수 있습니다.
+
+요약하면, smolagents는 코드 에이전트(codeAgent)를 중심으로 동작합니다.
+코드 에이전트는 코드 블록을 통해 “행동(Actions)”을 실행하고, 실행 결과를 “관찰(Observations)”하는 사이클을 반복합니다.
+
+예를 들어, 우리의 에이전트에 이미지 생성 툴을 제공하여 고양이 사진을 생성하도록 요청할 수 있습니다.
+에이전트는 이전에 만든 맞춤형 에이전트와 동일하게 “생각(Think) → 행동(Act) → 관찰(Observe)” 사이클을 반복하며 최종 답변에 도달합니다.
+
+흥미롭지 않나요?
+
+---
+
+## 2. 에이전트 만들기
+
+### 2.1 Space 복제하기
+
+먼저, 아래 템플릿 Space를 복제합니다:
+[https://huggingface.co/spaces/agents-course/First_agent_template](https://huggingface.co/spaces/agents-course/First_agent_template)
+
+> 템플릿을 제공해주신 Aymeric에게 감사드립니다!
+
+Space를 복제하면 자신의 프로필에 로컬 복사본이 생성됩니다.
+
+복제 후, 에이전트가 모델 API에 접근할 수 있도록 Hugging Face API 토큰을 추가해야 합니다.
+
+1. [https://hf.co/settings/tokens](https://hf.co/settings/tokens)에서 inference 권한이 있는 토큰을 받아옵니다.
+2. 복제한 Space의 Settings 탭으로 이동합니다.
+3. Variables and Secrets 섹션으로 스크롤한 후 "New Secret"을 클릭합니다.
+4. `HF_TOKEN`이라는 이름의 비밀을 생성하고, 토큰 값을 붙여넣습니다.
+5. 저장 버튼을 눌러 토큰을 안전하게 저장합니다.
+
+튜토리얼 전체에서 수정해야 할 유일한 파일은 (현재 불완전한) “app.py”입니다. 자신의 복제본에서 `Files` 탭을 클릭한 후 `app.py` 파일을 열어 확인할 수 있습니다.
+
+---
+
+## 3. 코드 분석
+
+### 3.1 라이브러리 임포트
+
+`app.py` 파일은 간단하지만 필수적인 라이브러리 임포트로 시작합니다:
+
+```python
+from smolagents import CodeAgent, DuckDuckGoSearchTool, HfApiModel, load_tool, tool
+import datetime
+import requests
+import pytz
+import yaml
+from tools.final_answer import FinalAnswerTool
+from Gradio_UI import GradioUI
+```
+
+앞서 설명한 대로, 이번 튜토리얼에서는 smolagents의 CodeAgent 클래스를 직접 사용할 것입니다.
+
+---
+
+### 3.2 툴 정의
+
+이제 툴을 정의해봅니다. 툴에 대한 복습이 필요하다면 [Tools 섹션](#)을 참고하세요.
+
+다음은 두 가지 예시입니다:
+
+1. 아직 기능은 없지만 나중에 유용하게 바꿀 수 있는 더미 도구
+2. 실제 동작하는, 지정된 시간대의 현재 시간을 가져오는 도구
+
+```python
+@tool
+def my_custom_tool(arg1: str, arg2: int) -> str:
+    """
+    아직 아무 동작도 하지 않는 툴
+    Args:
+        arg1: 첫 번째 인자
+        arg2: 두 번째 인자
+    """
+    return "What magic will you build ?"
+
+@tool
+def get_current_time_in_timezone(timezone: str) -> str:
+    """
+    지정된 시간대의 현재 로컬 시간을 가져오는 툴.
+    Args:
+        timezone: 유효한 시간대 문자열 (예: 'America/New_York')
+    """
+    try:
+        tz = pytz.timezone(timezone)
+        local_time = datetime.datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
+        return f"The current local time in {timezone} is: {local_time}"
+    except Exception as e:
+        return f"Error fetching time for timezone '{timezone}': {str(e)}"
+```
+
+툴을 정의할 때는 함수의 입력 및 출력 타입을 명시하고, 모든 인자에 대해 설명하는 docstring을 포함하는 것이 중요합니다.
+
+---
+
+### 3.3 에이전트 구성
+
+다음으로, LLM 엔진으로 `Qwen/Qwen2.5-Coder-32B-Instruct` 모델을 사용하여 에이전트를 구성합니다. 이 모델은 서버리스 API를 통해 접근합니다.
+
+```python
+final_answer = FinalAnswerTool()
+model = HfApiModel(
+    max_tokens=2096,
+    temperature=0.5,
+    model_id='Qwen/Qwen2.5-Coder-32B-Instruct',
+    custom_role_conversions=None,
+)
+
+with open("prompts.yaml", 'r') as stream:
+    prompt_templates = yaml.safe_load(stream)
+
+# CodeAgent를 생성합니다.
+agent = CodeAgent(
+    model=model,
+    tools=[final_answer],  # 여기서 도구들을 추가합니다. (final_answer는 반드시 유지)
+    max_steps=6,
+    verbosity_level=1,
+    grammar=None,
+    planning_interval=None,
+    name=None,
+    description=None,
+    prompt_templates=prompt_templates
+)
+
+GradioUI(agent).launch()
+```
+
+이 에이전트는 이전 섹션에서 본 InferenceClient를 HfApiModel 클래스 뒤에 사용하여 동작합니다.
+앞으로 Unit 2에서 프레임워크에 대해 더 심도 있게 다룰 예정이며, 지금은 `tools` 매개변수를 통해 에이전트에 새로운 도구를 추가하는 것에 집중하면 됩니다.
+
+예를 들어, 코드 상단에서 임포트한 `DuckDuckGoSearchTool`이나 나중에 Hub에서 불러오는 `image_generation_tool` 등을 추가하여 에이전트의 기능을 확장할 수 있습니다.
+창의적으로 도구들을 추가해보세요!
+
+---
+
+## 4. 전체 "app.py" 파일
+
+아래는 완성된 `app.py` 파일의 전체 코드입니다:
+
+```python
+from smolagents import CodeAgent, DuckDuckGoSearchTool, HfApiModel, load_tool, tool
+import datetime
+import requests
+import pytz
+import yaml
+from tools.final_answer import FinalAnswerTool
+from Gradio_UI import GradioUI
+
+# 아래는 아무 동작도 하지 않는 도구의 예시입니다. 여러분의 창의력으로 멋진 기능을 만들어 보세요!
+@tool
+def my_custom_tool(arg1: str, arg2: int) -> str:
+    """
+    아직 아무 동작도 하지 않는 툴.
+    Args:
+        arg1: 첫 번째 인자
+        arg2: 두 번째 인자
+    """
+    return "What magic will you build ?"
+
+@tool
+def get_current_time_in_timezone(timezone: str) -> str:
+    """
+    지정된 시간대의 현재 로컬 시간을 가져오는 툴.
+    Args:
+        timezone: 유효한 시간대 문자열 (예: 'America/New_York')
+    """
+    try:
+        tz = pytz.timezone(timezone)
+        local_time = datetime.datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
+        return f"The current local time in {timezone} is: {local_time}"
+    except Exception as e:
+        return f"Error fetching time for timezone '{timezone}': {str(e)}"
+
+final_answer = FinalAnswerTool()
+model = HfApiModel(
+    max_tokens=2096,
+    temperature=0.5,
+    model_id='Qwen/Qwen2.5-Coder-32B-Instruct',
+    custom_role_conversions=None,
+)
+
+# Hub에서 도구 불러오기
+image_generation_tool = load_tool("agents-course/text-to-image", trust_remote_code=True)
+
+with open("prompts.yaml", 'r') as stream:
+    prompt_templates = yaml.safe_load(stream)
+
+agent = CodeAgent(
+    model=model,
+    tools=[final_answer],  # 여기서 도구들을 추가합니다. (final_answer는 반드시 유지)
+    max_steps=6,
+    verbosity_level=1,
+    grammar=None,
+    planning_interval=None,
+    name=None,
+    description=None,
+    prompt_templates=prompt_templates
+)
+
+GradioUI(agent).launch()
+```
+
+---
+
+## 5. 목표
+
+여러분의 목표는 이 Space와 에이전트에 익숙해지는 것입니다.
+현재 템플릿의 에이전트는 아무 도구도 사용하지 않으므로, 미리 제공된 도구들을 추가하거나 새로운 도구를 직접 만들어 보세요!
+
+여러분의 멋진 에이전트 결과물을 #agents-course-showcase 디스코드 채널에서 기다리고 있습니다.
+
+---
+
+## 6. 마무리
+
+축하합니다! 여러분은 첫 번째 에이전트를 성공적으로 구축했습니다.
+처음 시도해보는 만큼 약간의 버그나 느린 반응이 있을 수 있지만, 앞으로의 Unit에서 더 나은 에이전트를 만드는 방법을 배우게 될 것입니다.
+
+가장 좋은 학습 방법은 직접 시도해보는 것입니다. 코드를 업데이트하고, 도구를 추가하며, 다른 모델로 실험해보세요.
+
+다음 섹션에서는 최종 퀴즈를 풀고 인증서를 받게 될 것입니다.
